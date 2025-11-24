@@ -165,7 +165,7 @@ void playerCollision() {
             for (GameObject* g : objects) {
               g->destroy();
             }
-            
+
             isGameOver = true;
 
             return;
@@ -201,29 +201,7 @@ void loop() {
   handleObjectDestruction();
 
   if (isGameOver) {
-    oled.setTextSize(2);
-    oled.setTextColor(SSD1306_WHITE);
-    oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
-    oled.println("Game Over");
-    oled.display();
-
-    // non-blocking Display "Game Over" for 5 seconds
-    static unsigned long gameOverStart = 0;
-    if (gameOverStart == 0) {
-      gameOverStart = millis();
-    }
-    if (millis() - gameOverStart < 5000UL) {
-      return;
-    }
-    gameOverStart = 0;
-    
-    // Reset game state
-    isGameOver = false;
-    playerX = SCREEN_WIDTH - playerSize - 1;
-    playerY = SCREEN_HEIGHT / 2;
-    objects.clear();
-    GameObject* player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
-    return;
+   return gameOver();
 
   } else {
     for(int i = 0; i<objects.size(); i++){
@@ -259,4 +237,35 @@ void loop() {
   }
   oled.display();
   delay(10);
+}
+
+void gameOver()
+{
+ static unsigned long gameOverStart = 0;
+    int waitTime = 5; // seconds
+
+    if (gameOverStart == 0) {
+      gameOverStart = millis();
+    }
+
+    oled.setTextSize(2);
+    oled.setTextColor(SSD1306_WHITE);
+    oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
+    oled.println("Game Over");
+    oled.println("     "                                         // this will center the countdown
+      + String(waitTime - (millis() - gameOverStart) / 1000));  // this will show countdown
+    oled.display();
+    
+    if (millis() - gameOverStart < waitTime*1000UL) {
+      return;
+    }
+    gameOverStart = 0;
+    
+    // Reset game state
+    isGameOver = false;
+    playerX = SCREEN_WIDTH - playerSize - 1;
+    playerY = SCREEN_HEIGHT / 2;
+    objects.clear();
+    GameObject* player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
+    return;
 }
