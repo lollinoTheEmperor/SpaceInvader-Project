@@ -207,13 +207,21 @@ void showGameOver()
 
   oled.setTextSize(2);
   oled.setTextColor(SSD1306_WHITE);
-  oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
-  oled.println("Game Over");
+  oled.setCursor(10, 8);
+  oled.print("Game Over");
+
   oled.setTextSize(1);
-  oled.setCursor(30, SCREEN_HEIGHT / 2 + 10);
-  oled.println("Score: " + String(gameScore));
-  oled.println("restart:"                                                  // this will center the countdown
-               + String(waitTime - (millis() - gameOverStart) / 1000)); // this will show countdown
+  oled.setCursor(10, 34);
+  oled.print("Score: ");
+  oled.print(gameScore);
+
+  unsigned long elapsedSec = (millis() - gameOverStart) / 1000UL;
+  int remaining = waitTime - (int)elapsedSec;
+  if (remaining < 0) remaining = 0;
+  oled.setCursor(10, 50);
+  oled.print("Restart in ");
+  oled.print(remaining);
+
   oled.display();
 
   if (millis() - gameOverStart < waitTime * 1000UL)
