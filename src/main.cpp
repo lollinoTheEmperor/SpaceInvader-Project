@@ -29,6 +29,13 @@ int enemySpawnTresholdMax = 90;
 int enemySizeMin = 2;
 int enemySizeMax = 5;
 
+// Difficulty scaling: spawn faster over time
+unsigned long lastDifficultyTick = 0;
+const unsigned long difficultyTickInterval = 5000UL; // every 10 seconds
+const int enemySpawnTresholdMinLimit = 8;   // never go below this
+const int enemySpawnTresholdMaxLimit = 20;  // never go below this
+const int enemySpawnTresholdStep = 1;       // amount to decrease each tick
+
 // Projectile Settings
 int projectileAccumulator = 0;
 int projectileSpawnTreshold = 20;
@@ -240,6 +247,26 @@ void showGameOver()
   return;
 }
 
+
+
+void updateDifficulty() {
+  unsigned long now = millis();
+  if (now - lastDifficultyTick < difficultyTickInterval) return;
+  lastDifficultyTick = now;
+
+  if (enemySpawnTresholdMin > enemySpawnTresholdMinLimit) {
+    enemySpawnTresholdMin -= enemySpawnTresholdStep;
+    if (enemySpawnTresholdMin < enemySpawnTresholdMinLimit)
+      enemySpawnTresholdMin = enemySpawnTresholdMinLimit;
+  }
+
+  if (enemySpawnTresholdMax > enemySpawnTresholdMaxLimit) {
+    enemySpawnTresholdMax -= enemySpawnTresholdStep;
+    if (enemySpawnTresholdMax < enemySpawnTresholdMaxLimit)
+      enemySpawnTresholdMax = enemySpawnTresholdMaxLimit;
+  }
+}
+
 void setup() {
   Serial.begin(9600);
  
@@ -260,6 +287,9 @@ void loop() {
   if (isGameOver) {
     showGameOver();
   } else {
+    // scale difficulty over time
+    updateDifficulty();
+
     // normally update and draw objects (normal game loop)
     for(int i = 0; i<objects.size(); i++){
       switch(objects[i]->getType()){
