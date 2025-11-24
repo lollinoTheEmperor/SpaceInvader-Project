@@ -13,44 +13,49 @@
 
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
  
+// Button pins
 int pinButtonUp = 13;
 int pinButtonDown = 12;
  
-// Player Settings
+// Player settings
 int playerSize = 8;
 int playerX = SCREEN_WIDTH - playerSize - 1;
 int playerY = SCREEN_HEIGHT/2;
 int playerSpeed = 2;
 
-// Enemies Settings
+// Enemy spawn settings
 int enemiesAccumulator = 0;
 int enemySpawnTresholdMin = 40;
 int enemySpawnTresholdMax = 90;
 int enemySizeMin = 2;
 int enemySizeMax = 5;
 
-// Difficulty scaling: spawn faster over time
-const unsigned long difficultyUpdateInterval = 5000UL; // every 5 seconds
-const int enemySpawnTresholdStep = 1;       // amount to decrease each tick
+// Difficulty scaling
+const unsigned long difficultyUpdateInterval = 5000UL;  // update every 5s
+const int enemySpawnTresholdStep = 1;                   // decrease spawn delay
 unsigned long lastDifficultyUpdate  = 0;
-const int minSpawnDelayLimit = 8;   // never go below this
-const int maxSpawnDelayLimit  = 20;  // never go below this
+const int minSpawnDelayLimit = 8;   
+const int maxSpawnDelayLimit  = 20;
 
-// Projectile Settings
+// Projectile settings
 int projectileAccumulator = 0;
 int projectileSpawnTreshold = 20;
 int projectileSize = 0;
 int projectileSpeed = 2;
 
+// All active game objects
 std::vector<GameObject*> objects;
 
+// Game state
 bool isGameOver = false;
 int gameScore = 0;
 
+// Draw circular object (enemy or projectile)
 void drawObjectCircle(GameObject* o){
   oled.fillCircle(o->getX(), o->getY(), o->getSize(), SSD1306_WHITE);
 }
 
+// Draw triangular player ship
 void drawObjectTriangle(GameObject* o){
     int cx = o->getX();
     int cy = o->getY();
@@ -62,94 +67,89 @@ void drawObjectTriangle(GameObject* o){
     // Apex (points toward negative-X)
     int x0 = cx - s / 2;
     int y0 = cy;
-
     // Base top
     int x1 = cx + s / 2;
     int y1 = cy - halfW;
-
     // Base bottom
     int x2 = cx + s / 2;
     int y2 = cy + halfW;
 
+
     oled.fillTriangle(x0, y0, x1, y1, x2, y2, SSD1306_WHITE);
 }
 
+// Handle button presses and move player
 void handleInput(){
-  if (digitalRead(pinButtonUp) == LOW && playerY - playerSize/2 > 0) {
+  if (digitalRead(pinButtonUp) == LOW && playerY - playerSize/2 > 0)
     playerY -= playerSpeed;
-  }
  
-  if (digitalRead(pinButtonDown) == LOW && playerY + playerSize/2 < SCREEN_HEIGHT) {
+  if (digitalRead(pinButtonDown) == LOW && playerY + playerSize/2 < SCREEN_HEIGHT)
     playerY += playerSpeed;
-  }
 }
 
-void handleEnemySpanwn(){
+// Spawn enemies based on accumulator and random threshold
+void handleEnemySpawn(){
   int enemySpawnTreshold = random(enemySpawnTresholdMin, enemySpawnTresholdMax);
 
   if(enemiesAccumulator < enemySpawnTreshold){
     enemiesAccumulator++;
   } else {
-
     int enemySize = random(enemySizeMin, enemySizeMax);
-    int enemySpawnY = random(0 + enemySize, SCREEN_HEIGHT - enemySize);
+    int enemySpawnY = random(enemySize, SCREEN_HEIGHT - enemySize);
 
-    GameObject* enemy = new GameObject(objects, -4, enemySpawnY, 1, 0, enemySize, ObjectType::Enemy);
+    new GameObject(objects, -4, enemySpawnY, 1, 0, enemySize, ObjectType::Enemy);
     enemiesAccumulator = 0;
   }
 }
 
+// Spawn projectiles at fixed interval
 void handleProjectileSpawn() {
   if(projectileAccumulator < projectileSpawnTreshold){
     projectileAccumulator++;
   } else {
-    GameObject* projectile = new GameObject(objects, playerX, playerY, -projectileSpeed, 0, projectileSize, ObjectType::Projectile);
+    new GameObject(objects, playerX, playerY, -projectileSpeed, 0, projectileSize, ObjectType::Projectile);
     projectileAccumulator = 0;
   }
 }
 
+// Remove enemies exiting right border
 void destroyEnemyOnBorder(GameObject* o){
-  if(o->getX() > SCREEN_WIDTH + o->getSize()){
+  if(o->getX() > SCREEN_WIDTH + o->getSize())
     o->destroy();
-  }
 }
 
+// Remove projectiles exiting left border
 void destroyProjectileOnBorder(GameObject* o){
-    if(o->getX() < o->getSize()){
+  if(o->getX() < o->getSize())
     o->destroy();
-  }
 }
 
+// Projectile and enemy collision handling
 void projectileCollision() {
-    // For each projectile, check every enemy for circle-circle overlap
     for (size_t i = 0; i < objects.size(); ++i) {
         GameObject* p = objects[i];
-        if (p->getType() != ObjectType::Projectile) {
-          continue;
-        }
+        if (p->getType() != ObjectType::Projectile) continue;
 
         for (size_t j = 0; j < objects.size(); ++j) {
-            if (i == j) {
-              continue;
-            }
+            if (i == j) continue;
 
             GameObject* e = objects[j];
-            if (e->getType() != ObjectType::Enemy) {
-              continue;
-            }
+            if (e->getType() != ObjectType::Enemy) continue;
 
             int dx = p->getX() - e->getX();
             int dy = p->getY() - e->getY();
             int r  = p->getSize() + e->getSize();
 
+            // Circle–circle collision -> use squared radius comparison
             if (dx*dx + dy*dy <= r*r) {
-                // Collision detected
+
+                // Large enemies shrink instead of dying
                 if (e->getSize() > enemySizeMax/2) {
-                  // Large enemy hit!
-                  e->setSize(e->getSize() / 2 > enemySizeMin ? e->getSize() / 2 : enemySizeMin);
+                  e->setSize(max(e->getSize()/2, enemySizeMin));
                   gameScore += POINT_X_ENEMY_HIT;
+
                 } else {
-                  // Small enemy hit!
+                  // Small enemies are destroyed
                   p->destroy();
                   e->destroy();
                   gameScore += POINT_X_ENEMY_HIT;
@@ -160,39 +160,34 @@ void projectileCollision() {
     }
 }
 
+// Check collisions between player and enemies
 void playerCollision() {
-    // Find player object. If it collides with any enemy, mark objects destroyed.
     GameObject* player = nullptr;
-    for (GameObject* o : objects) {
+
+    for (GameObject* o : objects)
         if (o->getType() == ObjectType::Player) { player = o; break; }
-    }
-    if (!player) {
-      return;
-    };
+
+    if (!player) return;
 
     for (GameObject* o : objects) {
-        if (o->getType() != ObjectType::Enemy) {
-          continue;
-        }
+        if (o->getType() != ObjectType::Enemy) continue;
+
         int dx = player->getX() - o->getX();
         int dy = player->getY() - o->getY();
         int r  = player->getSize() + o->getSize();
+
         if (dx*dx + dy*dy <= r*r) {
+            // Player hit → clear objects and trigger game over
             Serial.println(F("Player hit - restarting"));
-            // mark all objects destroyed so handleObjectDestruction will delete them
-            for (GameObject* g : objects) {
-              g->destroy();
-            }
-
+            for (GameObject* g : objects) g->destroy();
             isGameOver = true;
-
             return;
         }
     }
 }
 
+// Delete objects flagged for destruction
 void handleObjectDestruction(){
-  // iterate backwards to safely erase elements
   for (int i = (int)objects.size() - 1; i >= 0; --i){
     if(objects[i]->isDestroyed()){
       delete objects[i];
@@ -201,16 +196,14 @@ void handleObjectDestruction(){
   }
 }
 
-// non-blocking Display "Game Over" for 5 seconds
+// Display game over screen for 5 seconds (non-blocking -> live updates of millis)
 void showGameOver()
 {
   static unsigned long gameOverStart = 0;
-  int waitTime = 5; // seconds
+  int waitTime = 5;
 
   if (gameOverStart == 0)
-  {
     gameOverStart = millis();
-  }
 
   oled.setTextSize(2);
   oled.setTextColor(SSD1306_WHITE);
@@ -223,53 +216,46 @@ void showGameOver()
   oled.print(gameScore);
 
   unsigned long elapsedSec = (millis() - gameOverStart) / 1000UL;
-  int remaining = waitTime - (int)elapsedSec;
-  if (remaining < 0) remaining = 0;
+  int remaining = max(0, waitTime - (int)elapsedSec);
+
   oled.setCursor(10, 50);
   oled.print("Restart in ");
   oled.print(remaining);
 
   oled.display();
 
+  // Wait period not finished
   if (millis() - gameOverStart < waitTime * 1000UL)
-  {
     return;
-  }
-  gameOverStart = 0;
 
-  // RESET game state
+  // Reset state for new game
+  gameOverStart = 0;
   isGameOver = false;
   playerX = SCREEN_WIDTH - playerSize - 1;
   playerY = SCREEN_HEIGHT / 2;
   gameScore = 0;
 
-  // Reset difficulty to original values
   enemySpawnTresholdMin = 40;
   enemySpawnTresholdMax = 90;
   lastDifficultyUpdate = millis();
   
   objects.clear();
-  GameObject *player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
-  return;
+  new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
 }
 
-
+// Gradually reduce spawn delays -> increase difficulty
 void updateDifficulty() {
   unsigned long now = millis();
-  if (now - lastDifficultyUpdate  < difficultyUpdateInterval) return;
-  lastDifficultyUpdate  = now;
+  if (now - lastDifficultyUpdate < difficultyUpdateInterval) return;
 
-  if (enemySpawnTresholdMin > minSpawnDelayLimit) {
-    enemySpawnTresholdMin -= enemySpawnTresholdStep;
-    if (enemySpawnTresholdMin < minSpawnDelayLimit)
-      enemySpawnTresholdMin = minSpawnDelayLimit;
-  }
+  lastDifficultyUpdate = now;
 
-  if (enemySpawnTresholdMax > maxSpawnDelayLimit) {
-    enemySpawnTresholdMax -= enemySpawnTresholdStep;
-    if (enemySpawnTresholdMax < maxSpawnDelayLimit)
-      enemySpawnTresholdMax = maxSpawnDelayLimit;
-  }
+  // Decrease spawn delays but respect limits
+  if (enemySpawnTresholdMin > minSpawnDelayLimit)
+    enemySpawnTresholdMin = max(minSpawnDelayLimit, enemySpawnTresholdMin - enemySpawnTresholdStep);
+
+  if (enemySpawnTresholdMax > maxSpawnDelayLimit)
+    enemySpawnTresholdMax = max(maxSpawnDelayLimit, enemySpawnTresholdMax - enemySpawnTresholdStep);
 }
 
 void setup() {
@@ -278,53 +264,54 @@ void setup() {
   pinMode(pinButtonUp, INPUT_PULLUP);
   pinMode(pinButtonDown, INPUT_PULLUP);
  
-  if (!oled.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
     Serial.println(F("SSD1306 allocation failed"));
-  }
 
-  GameObject* player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
+  // Create player object
+  new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
 }
  
 void loop() {
   oled.clearDisplay();
+  // Remove objects marked for destruction
   handleObjectDestruction();
 
+  // Check if game over
   if (isGameOver) {
+    // -> Display game over + points
     showGameOver();
   } else {
-    // scale difficulty over time
+    // -> Normal game loop
+
     updateDifficulty();
 
-    // normally update and draw objects (normal game loop)
-    for(int i = 0; i<objects.size(); i++){
+    // Update + draw all objects
+    for(int i = 0; i < objects.size(); i++){
       switch(objects[i]->getType()){
-        case ObjectType::Player : {
+        case ObjectType::Player:
           drawObjectTriangle(objects[i]);
-
           objects[i]->setX(playerX);
           objects[i]->setY(playerY);
-
           playerCollision();
           break;
-        }
-        case ObjectType::Enemy : {
+
+        case ObjectType::Enemy:
           drawObjectCircle(objects[i]);
           destroyEnemyOnBorder(objects[i]);
           break;
-        }
-        case ObjectType::Projectile : {
+
+        case ObjectType::Projectile:
           drawObjectCircle(objects[i]);
           destroyProjectileOnBorder(objects[i]);
           projectileCollision();
           break;
-        }
       }
 
       objects[i]->update();
     }
 
     handleInput();
-    handleEnemySpanwn();
+    handleEnemySpawn();
     handleProjectileSpawn();
   }
 
