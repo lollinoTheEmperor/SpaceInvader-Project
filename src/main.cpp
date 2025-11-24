@@ -165,7 +165,9 @@ void playerCollision() {
             for (GameObject* g : objects) {
               g->destroy();
             }
-            // Optionally reset accumulators or player position here
+            
+            isGameOver = true;
+
             return;
         }
     }
@@ -204,7 +206,17 @@ void loop() {
     oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
     oled.println("Game Over");
     oled.display();
-    delay(2000); // Display "Game Over" for 2 seconds
+
+    // non-blocking Display "Game Over" for 5 seconds
+    static unsigned long gameOverStart = 0;
+    if (gameOverStart == 0) {
+      gameOverStart = millis();
+    }
+    if (millis() - gameOverStart < 5000UL) {
+      return;
+    }
+    gameOverStart = 0;
+    
     // Reset game state
     isGameOver = false;
     playerX = SCREEN_WIDTH - playerSize - 1;
