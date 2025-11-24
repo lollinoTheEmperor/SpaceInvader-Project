@@ -36,6 +36,8 @@ int projectileSpeed = 2;
 
 std::vector<GameObject*> objects;
 
+bool isGameOver = false;
+
 void drawObjectCircle(GameObject* o){
   oled.fillCircle(o->getX(), o->getY(), o->getSize(), SSD1306_WHITE);
 }
@@ -110,21 +112,68 @@ void destroyProjectileOnBorder(GameObject* o){
 }
 
 void projectileCollision() {
-  /*
-   * For each object-enemy:
-   * checks respective positions: if positions overlap, call destroy() on projectile and on the enemy
-   */
+    // For each projectile, check every enemy for circle-circle overlap
+    for (size_t i = 0; i < objects.size(); ++i) {
+        GameObject* p = objects[i];
+        if (p->getType() != ObjectType::Projectile) {
+          continue;
+        }
+
+        for (size_t j = 0; j < objects.size(); ++j) {
+            if (i == j) {
+              continue;
+            }
+
+            GameObject* e = objects[j];
+            if (e->getType() != ObjectType::Enemy) {
+              continue;
+            }
+
+            int dx = p->getX() - e->getX();
+            int dy = p->getY() - e->getY();
+            int r  = p->getSize() + e->getSize();
+
+            if (dx*dx + dy*dy <= r*r) {
+                p->destroy();
+                e->destroy();
+                break;
+            }
+        }
+    }
 }
 
 void playerCollision() {
-  /*
-   * For each object-enemy:
-   * checks respective positions: if positions overlap, player looses and restart the game
-   */
+    // Find player object. If it collides with any enemy, mark objects destroyed.
+    GameObject* player = nullptr;
+    for (GameObject* o : objects) {
+        if (o->getType() == ObjectType::Player) { player = o; break; }
+    }
+    if (!player) {
+      return;
+    };
+
+    for (GameObject* o : objects) {
+        if (o->getType() != ObjectType::Enemy) {
+          continue;
+        }
+        int dx = player->getX() - o->getX();
+        int dy = player->getY() - o->getY();
+        int r  = player->getSize() + o->getSize();
+        if (dx*dx + dy*dy <= r*r) {
+            Serial.println(F("Player hit - restarting"));
+            // mark all objects destroyed so handleObjectDestruction will delete them
+            for (GameObject* g : objects) {
+              g->destroy();
+            }
+            // Optionally reset accumulators or player position here
+            return;
+        }
+    }
 }
 
 void handleObjectDestruction(){
-  for(int i=0; i<objects.size(); i++){
+  // iterate backwards to safely erase elements
+  for (int i = (int)objects.size() - 1; i >= 0; --i){
     if(objects[i]->isDestroyed()){
       delete objects[i];
       objects.erase(objects.begin() + i);
@@ -149,38 +198,53 @@ void loop() {
   oled.clearDisplay();
   handleObjectDestruction();
 
-  for(int i = 0; i<objects.size(); i++){
-    
-    switch(objects[i]->getType()){
-      case ObjectType::Player : {
-        drawObjectTriangle(objects[i]);
+  if (isGameOver) {
+    oled.setTextSize(2);
+    oled.setTextColor(SSD1306_WHITE);
+    oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
+    oled.println("Game Over");
+    oled.display();
+    delay(2000); // Display "Game Over" for 2 seconds
+    // Reset game state
+    isGameOver = false;
+    playerX = SCREEN_WIDTH - playerSize - 1;
+    playerY = SCREEN_HEIGHT / 2;
+    objects.clear();
+    GameObject* player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
+    return;
 
-        objects[i]->setX(playerX);
-        objects[i]->setY(playerY);
+  } else {
+    for(int i = 0; i<objects.size(); i++){
+      switch(objects[i]->getType()){
+        case ObjectType::Player : {
+          drawObjectTriangle(objects[i]);
 
-        playerCollision();
-        break;
+          objects[i]->setX(playerX);
+          objects[i]->setY(playerY);
+
+          playerCollision();
+          break;
+        }
+        case ObjectType::Enemy : {
+          drawObjectCircle(objects[i]);
+          destroyEnemyOnBorder(objects[i]);
+          break;
+        }
+        case ObjectType::Projectile : {
+          drawObjectCircle(objects[i]);
+          destroyProjectileOnBorder(objects[i]);
+          projectileCollision();
+          break;
+        }
       }
-      case ObjectType::Enemy : {
-        drawObjectCircle(objects[i]);
-        destroyEnemyOnBorder(objects[i]);
-        break;
-      }
-      case ObjectType::Projectile : {
-        drawObjectCircle(objects[i]);
-        destroyProjectileOnBorder(objects[i]);
-        projectileCollision();
-        break;
-      }
+
+      objects[i]->update();
     }
 
-    objects[i]->update();
+    handleInput();
+    handleEnemySpanwn();
+    handleProjectileSpawn();
   }
-
-  handleInput();
-  handleEnemySpanwn();
-  handleProjectileSpawn();
-
   oled.display();
   delay(10);
 }
