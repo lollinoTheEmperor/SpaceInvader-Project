@@ -9,7 +9,8 @@
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 #define SCREEN_ADDRESS 0x3D
- 
+#define POINT_X_ENEMY_HIT 10
+
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
  
 int pinButtonUp = 13;
@@ -37,6 +38,7 @@ int projectileSpeed = 2;
 std::vector<GameObject*> objects;
 
 bool isGameOver = false;
+int gameScore = 0;
 
 void drawObjectCircle(GameObject* o){
   oled.fillCircle(o->getX(), o->getY(), o->getSize(), SSD1306_WHITE);
@@ -134,8 +136,17 @@ void projectileCollision() {
             int r  = p->getSize() + e->getSize();
 
             if (dx*dx + dy*dy <= r*r) {
-                p->destroy();
-                e->destroy();
+                // Collision detected
+                if (e->getSize() > enemySizeMax/2) {
+                  // Large enemy hit!
+                  e->setSize(e->getSize() / 2 > enemySizeMin ? e->getSize() / 2 : enemySizeMin);
+                  gameScore += POINT_X_ENEMY_HIT;
+                } else {
+                  // Small enemy hit!
+                  p->destroy();
+                  e->destroy();
+                  gameScore += POINT_X_ENEMY_HIT;
+                }            
                 break;
             }
         }
@@ -183,6 +194,44 @@ void handleObjectDestruction(){
   }
 }
 
+// non-blocking Display "Game Over" for 5 seconds
+void showGameOver()
+{
+  static unsigned long gameOverStart = 0;
+  int waitTime = 5; // seconds
+
+  if (gameOverStart == 0)
+  {
+    gameOverStart = millis();
+  }
+
+  oled.setTextSize(2);
+  oled.setTextColor(SSD1306_WHITE);
+  oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
+  oled.println("Game Over");
+  oled.setTextSize(1);
+  oled.setCursor(30, SCREEN_HEIGHT / 2 + 10);
+  oled.println("Score: " + String(gameScore));
+  oled.println("restart:"                                                  // this will center the countdown
+               + String(waitTime - (millis() - gameOverStart) / 1000)); // this will show countdown
+  oled.display();
+
+  if (millis() - gameOverStart < waitTime * 1000UL)
+  {
+    return;
+  }
+  gameOverStart = 0;
+
+  // Reset game state
+  isGameOver = false;
+  playerX = SCREEN_WIDTH - playerSize - 1;
+  playerY = SCREEN_HEIGHT / 2;
+  gameScore = 0;
+  objects.clear();
+  GameObject *player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
+  return;
+}
+
 void setup() {
   Serial.begin(9600);
  
@@ -201,9 +250,9 @@ void loop() {
   handleObjectDestruction();
 
   if (isGameOver) {
-   return gameOver();
-
+    showGameOver();
   } else {
+    // normally update and draw objects (normal game loop)
     for(int i = 0; i<objects.size(); i++){
       switch(objects[i]->getType()){
         case ObjectType::Player : {
@@ -235,37 +284,7 @@ void loop() {
     handleEnemySpanwn();
     handleProjectileSpawn();
   }
+
   oled.display();
   delay(10);
-}
-
-void gameOver()
-{
- static unsigned long gameOverStart = 0;
-    int waitTime = 5; // seconds
-
-    if (gameOverStart == 0) {
-      gameOverStart = millis();
-    }
-
-    oled.setTextSize(2);
-    oled.setTextColor(SSD1306_WHITE);
-    oled.setCursor(20, SCREEN_HEIGHT / 2 - 10);
-    oled.println("Game Over");
-    oled.println("     "                                         // this will center the countdown
-      + String(waitTime - (millis() - gameOverStart) / 1000));  // this will show countdown
-    oled.display();
-    
-    if (millis() - gameOverStart < waitTime*1000UL) {
-      return;
-    }
-    gameOverStart = 0;
-    
-    // Reset game state
-    isGameOver = false;
-    playerX = SCREEN_WIDTH - playerSize - 1;
-    playerY = SCREEN_HEIGHT / 2;
-    objects.clear();
-    GameObject* player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
-    return;
 }
