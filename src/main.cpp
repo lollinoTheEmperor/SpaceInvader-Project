@@ -30,11 +30,11 @@ int enemySizeMin = 2;
 int enemySizeMax = 5;
 
 // Difficulty scaling: spawn faster over time
-unsigned long lastDifficultyTick = 0;
-const unsigned long difficultyTickInterval = 5000UL; // every 10 seconds
-const int enemySpawnTresholdMinLimit = 8;   // never go below this
-const int enemySpawnTresholdMaxLimit = 20;  // never go below this
+const unsigned long difficultyUpdateInterval = 5000UL; // every 5 seconds
 const int enemySpawnTresholdStep = 1;       // amount to decrease each tick
+unsigned long lastDifficultyUpdate  = 0;
+const int minSpawnDelayLimit = 8;   // never go below this
+const int maxSpawnDelayLimit  = 20;  // never go below this
 
 // Projectile Settings
 int projectileAccumulator = 0;
@@ -251,19 +251,19 @@ void showGameOver()
 
 void updateDifficulty() {
   unsigned long now = millis();
-  if (now - lastDifficultyTick < difficultyTickInterval) return;
-  lastDifficultyTick = now;
+  if (now - lastDifficultyUpdate  < difficultyUpdateInterval) return;
+  lastDifficultyUpdate  = now;
 
-  if (enemySpawnTresholdMin > enemySpawnTresholdMinLimit) {
+  if (enemySpawnTresholdMin > minSpawnDelayLimit) {
     enemySpawnTresholdMin -= enemySpawnTresholdStep;
-    if (enemySpawnTresholdMin < enemySpawnTresholdMinLimit)
-      enemySpawnTresholdMin = enemySpawnTresholdMinLimit;
+    if (enemySpawnTresholdMin < minSpawnDelayLimit)
+      enemySpawnTresholdMin = minSpawnDelayLimit;
   }
 
-  if (enemySpawnTresholdMax > enemySpawnTresholdMaxLimit) {
+  if (enemySpawnTresholdMax > maxSpawnDelayLimit) {
     enemySpawnTresholdMax -= enemySpawnTresholdStep;
-    if (enemySpawnTresholdMax < enemySpawnTresholdMaxLimit)
-      enemySpawnTresholdMax = enemySpawnTresholdMaxLimit;
+    if (enemySpawnTresholdMax < maxSpawnDelayLimit)
+      enemySpawnTresholdMax = maxSpawnDelayLimit;
   }
 }
 
