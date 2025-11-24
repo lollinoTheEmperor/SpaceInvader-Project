@@ -138,10 +138,13 @@ void projectileCollision() {
 
             int dx = p->getX() - e->getX();
             int dy = p->getY() - e->getY();
-            int r  = p->getSize() + e->getSize();
+            
+            // adding a padding to the hitbox of 1 pixel.
+            int r  = p->getSize() + e->getSize() + 2; 
 
-            // Circle–circle collision -> use squared radius comparison
-            if (dx*dx + dy*dy <= r*r) {
+            // Circle–circle collision (using squared distance)
+            // Use 'long' to avoid possible overflow in square calculation.
+            if ((long)dx*dx + (long)dy*dy <= (long)r*r) { 
 
                 // Large enemies shrink instead of dying
                 if (e->getSize() > enemySizeMax/2) {
