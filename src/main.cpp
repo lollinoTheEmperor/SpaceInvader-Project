@@ -237,16 +237,21 @@ void showGameOver()
   }
   gameOverStart = 0;
 
-  // Reset game state
+  // RESET game state
   isGameOver = false;
   playerX = SCREEN_WIDTH - playerSize - 1;
   playerY = SCREEN_HEIGHT / 2;
   gameScore = 0;
+
+  // Reset difficulty to original values
+  enemySpawnTresholdMin = 40;
+  enemySpawnTresholdMax = 90;
+  lastDifficultyUpdate = millis();
+  
   objects.clear();
   GameObject *player = new GameObject(objects, playerX, playerY, 0, 0, playerSize, ObjectType::Player);
   return;
 }
-
 
 
 void updateDifficulty() {
